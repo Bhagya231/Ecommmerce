@@ -5,6 +5,7 @@ import org.ecommerce.dto.CartRequest;
 import org.ecommerce.dto.WishlistRequest;
 import org.ecommerce.dto.WishlistResponse;
 import org.ecommerce.exception.ResourceNotFoundException;
+import org.ecommerce.mapper.WishlistMapper;
 import org.ecommerce.model.Product;
 import org.ecommerce.model.User;
 import org.ecommerce.model.Wishlist;
@@ -15,7 +16,6 @@ import org.ecommerce.service.api.CartService;
 import org.ecommerce.service.api.WishlistService;
 import org.ecommerce.utility.AppLogger;
 import org.slf4j.Logger;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +33,7 @@ public class WishlistServiceImpl implements WishlistService
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final CartService cartService;
+    private final WishlistMapper wishlistMapper;
 
 
     @Override
@@ -41,20 +42,19 @@ public class WishlistServiceImpl implements WishlistService
         log.info("Adding product to wishlist. User ID: {}, Product ID: {}", userId, request.getProductId());
 
         User user = userRepository.findById(userId).orElseThrow(() ->
-                        new ResourceNotFoundException("User not found with ID: " + userId));
+                        new ResourceNotFoundException("User not found "));
 
-        Product product = productRepository.findByIdAndIsDeletedFalse(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                                "Product not found with ID: " + request.getProductId()));
+        Product product = productRepository.findByIdAndIsDeletedFalse(request.getProductId().toString())
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found " ));
 
         Wishlist existingWishlist = wishlistRepository
-                .findByUserIdAndProductIdAndIsDeletedFalse(userId, request.getProductId()).orElse(null);
+                .findByUserIdAndProductIdAndIsDeletedFalse(userId.toString(), request.getProductId().toString()).orElse(null);
 
         if (existingWishlist != null)
         {
             log.info("Product already exists in wishlist. Product ID: {}", request.getProductId());
 
-            return convertToResponse(existingWishlist);
+            return wishlistMapper.toResponse(existingWishlist);
         }
 
         Wishlist wishlist = new Wishlist();
@@ -66,7 +66,7 @@ public class WishlistServiceImpl implements WishlistService
 
         log.info("Product added to wishlist successfully. Wishlist ID: {}", savedWishlist.getId());
 
-        return convertToResponse(savedWishlist);
+        return wishlistMapper.toResponse(savedWishlist);
     }
 
 
@@ -76,15 +76,15 @@ public class WishlistServiceImpl implements WishlistService
         log.info("Fetching wishlist. User ID: {}", userId);
 
         userRepository.findById(userId).orElseThrow(() ->
-                        new ResourceNotFoundException("User not found with ID: " + userId));
+                        new ResourceNotFoundException("User not found  "));
 
-        List<Wishlist> wishlist = wishlistRepository.findByUserIdAndIsDeletedFalse(userId);
+        List<Wishlist> wishlist = wishlistRepository.findByUserIdAndIsDeletedFalse(userId.toString());
 
         List<WishlistResponse> responses = new ArrayList<>();
 
         for (Wishlist item : wishlist)
         {
-            responses.add(convertToResponse(item));
+            responses.add(wishlistMapper.toResponse(item));
         }
 
         log.info("Wishlist fetched successfully. User ID: {}, Items: {}", userId, responses.size());
@@ -99,7 +99,7 @@ public class WishlistServiceImpl implements WishlistService
         log.info("Removing product from wishlist. User ID: {}, Product ID: {}", userId, productId);
 
         Wishlist wishlist = wishlistRepository
-                .findByUserIdAndProductIdAndIsDeletedFalse(userId, productId)
+                .findByUserIdAndProductIdAndIsDeletedFalse(userId.toString(), productId.toString())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found in wishlist"));
 
         wishlist.setIsDeleted(true);
@@ -116,7 +116,7 @@ public class WishlistServiceImpl implements WishlistService
         log.info("Moving product from wishlist to cart. User ID: {}, Product ID: {}", userId, productId);
 
         Wishlist wishlist = wishlistRepository
-                .findByUserIdAndProductIdAndIsDeletedFalse(userId, productId)
+                .findByUserIdAndProductIdAndIsDeletedFalse(userId.toString(), productId.toString())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found in wishlist"));
 
         CartRequest cartRequest = new CartRequest();
@@ -131,25 +131,7 @@ public class WishlistServiceImpl implements WishlistService
 
         log.info("Product moved to cart successfully. Product ID: {}", productId);
 
-        return convertToResponse(wishlist);
-    }
-
-
-    private WishlistResponse convertToResponse(Wishlist wishlist)
-    {
-        WishlistResponse response = new WishlistResponse();
-
-        BeanUtils.copyProperties(wishlist, response);
-
-        response.setId(wishlist.getId());
-        response.setProductId(wishlist.getProduct().getId());
-        response.setProductName(wishlist.getProduct().getName());
-        response.setCategory(wishlist.getProduct().getCategory());
-        response.setPrice(wishlist.getProduct().getPrice());
-        response.setStock(wishlist.getProduct().getStock());
-        response.setDescription(wishlist.getProduct().getDescription());
-
-        return response;
+        return wishlistMapper.toResponse(wishlist);
     }
 
 

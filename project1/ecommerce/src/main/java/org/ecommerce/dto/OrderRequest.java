@@ -25,4 +25,6 @@ public class OrderRequest
     @NotEmpty(message = "At least one product must be selected")
     @Valid
     private List<OrderItemRequest> orderItems;
+
+
 }

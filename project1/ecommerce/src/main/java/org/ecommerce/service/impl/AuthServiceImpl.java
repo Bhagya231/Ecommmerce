@@ -7,6 +7,7 @@ import org.ecommerce.dto.RegisterRequest;
 import org.ecommerce.dto.RegisterResponse;
 import org.ecommerce.exception.EmailAlreadyExistsException;
 import org.ecommerce.exception.InvalidCredentialsException;
+import org.ecommerce.mapper.UserMapper;
 import org.ecommerce.model.User;
 import org.ecommerce.repository.UserRepository;
 import org.ecommerce.service.api.AuthService;
@@ -24,6 +25,7 @@ public class AuthServiceImpl implements AuthService
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
 
     @Override
     public RegisterResponse register(RegisterRequest request) {
@@ -31,18 +33,14 @@ public class AuthServiceImpl implements AuthService
         log.info("Registration started for email: {}", request.getEmail());
 
         try {
-            if (userRepository.existsByEmail(request.getEmail())) {
+            if (userRepository.existsByEmail(request.getEmail()) > 0)
+            {
                 log.warn("Registration failed. Email already exists: {}", request.getEmail());
 
                 throw new EmailAlreadyExistsException("Email already exists");
             }
 
-            User user = new User();
-
-            user.setName(request.getName());
-            user.setEmail(request.getEmail());
-            user.setPhone(request.getPhone());
-            user.setAddress(request.getAddress());
+            User user = userMapper.toEntity(request);
 
             user.setPassword(passwordEncoder.encode(request.getPassword()));
 
@@ -51,16 +49,10 @@ public class AuthServiceImpl implements AuthService
 
             log.info("Customer registered successfully. User ID: {}", savedUser.getId());
 
-            return new RegisterResponse(
-                    savedUser.getId(),
-                    savedUser.getName(),
-                    savedUser.getEmail(),
-                    savedUser.getPhone(),
-                    savedUser.getAddress(),
-                    savedUser.getRole(),
-                    savedUser.getCreatedAt(),
-                    savedUser.getUpdatedAt()
-            );
+            RegisterResponse response =  userMapper.toRegisterResponse(savedUser);
+            response.setMessage("User registered successfully");
+
+            return response;
 
         } catch (EmailAlreadyExistsException e) {
 
@@ -85,27 +77,22 @@ public class AuthServiceImpl implements AuthService
 
                         log.warn("Login failed. User not found: {}", request.getEmail());
 
-                        return new InvalidCredentialsException("Invalid email or password");});
+                        return new InvalidCredentialsException("user not register with this email");});
 
             if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
 
                 log.warn("Login failed. Invalid password for email: {}", request.getEmail());
 
-                throw new InvalidCredentialsException("Invalid email or password");
+                throw new InvalidCredentialsException("Invalid password try again");
             }
 
             log.info("Login successful. User ID: {}", user.getId());
 
-            return new LoginResponse(
-                    user.getId(),
-                    user.getName(),
-                    user.getEmail(),
-                    user.getPhone(),
-                    user.getAddress(),
-                    user.getRole(),
-                    user.getCreatedAt(),
-                    user.getUpdatedAt()
-            );
+            LoginResponse response = userMapper.toLoginResponse(user);
+            response.setMessage("User Login successfully ");
+
+
+            return response;
 
         } catch (InvalidCredentialsException e) {
 

@@ -1,5 +1,6 @@
 package org.ecommerce.service.api;
 
+import org.ecommerce.dto.ProductPageResponse;
 import org.ecommerce.dto.ProductRequest;
 import org.ecommerce.dto.ProductResponse;
 
@@ -11,15 +12,11 @@ public interface ProductService
 {
     ProductResponse addProduct(ProductRequest request);
 
-    ProductResponse getProductById(UUID id);
 
-    List<ProductResponse> getAllProducts();
+    ProductPageResponse getProducts(int offset,int limit, String search,
+                                    String category, BigDecimal  minPrice,BigDecimal maxPrice);
 
-    List<ProductResponse> getProductsByName(String name);
 
-    List<ProductResponse> getProductsByCategory(String category);
-
-    List<ProductResponse> getProductsByPrice(BigDecimal price);
 
     ProductResponse updateProduct(UUID id, ProductRequest request);
 

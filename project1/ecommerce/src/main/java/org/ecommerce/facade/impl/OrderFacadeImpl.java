@@ -27,11 +27,11 @@ public class OrderFacadeImpl implements OrderFacade
     private final UserRepository userRepository;
 
     @Override
-    public OrderResponse placeOrder(String email, OrderRequest request) {
+    public OrderResponse placeOrder(String email, OrderRequest request,UUID couponId) {
         log.info("Customer attempting to place order. Email: {}", email);
         try {
             User user = checkCustomer(email.trim());
-            OrderResponse response = orderService.placeOrder(user.getId(), request);
+            OrderResponse response = orderService.placeOrder(user.getId(), request,couponId);
             log.info("Order placed successfully. User ID: {}", user.getId());
             return response;
         } catch (Exception e) {

@@ -14,6 +14,8 @@ import java.util.UUID;
 @NoArgsConstructor
 public class LoginResponse
 {
+    private String message;
+
     private UUID id;
     private String name;
     private String email;

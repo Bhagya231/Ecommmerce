@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface OrderService
 {
-    OrderResponse placeOrder(UUID userId, OrderRequest request);
+    OrderResponse placeOrder(UUID userId, OrderRequest request,UUID couponId);
 
     List<OrderResponse> getCustomerOrders(UUID userId);
 

@@ -1,6 +1,7 @@
 package org.ecommerce.facade.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.ecommerce.dto.ProductPageResponse;
 import org.ecommerce.dto.ProductRequest;
 import org.ecommerce.dto.ProductResponse;
 import org.ecommerce.exception.AccessDeniedException;
@@ -14,7 +15,6 @@ import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -29,43 +29,14 @@ public class ProductFacadeImpl implements ProductFacade
 
 
     @Override
-    public List<ProductResponse> getAllProducts() {
-
-        log.info("Fetching all products");
-
-        return productService.getAllProducts();
+    public ProductPageResponse getProducts(int offset, int limit, String search,
+                                           String category, BigDecimal minPrice, BigDecimal maxPrice)
+    {
+        log.info("Fetching products. offset: {}, limit: {}, search: {}, category: {}, minPrice: {}, maxPrice: {}",
+                offset, limit, search, category, minPrice, maxPrice);
+        return productService.getProducts(offset, limit, search, category, minPrice, maxPrice);
     }
 
-    @Override
-    public ProductResponse getProductById(UUID id) {
-
-        log.info("Fetching product with ID: {}",id);
-
-        return productService.getProductById(id);
-    }
-
-    @Override
-    public List<ProductResponse> getProductsByName(String name) {
-
-        log.info("Searching products by name: {}", name);
-
-        return productService.getProductsByName(name);
-    }
-
-    @Override
-    public List<ProductResponse> getProductsByCategory(String category) {
-
-        log.info("Fetching products by category: {}", category);
-        return productService.getProductsByCategory(category);
-    }
-
-    @Override
-    public List<ProductResponse> getProductsByPrice(BigDecimal price) {
-
-        log.info("Fetching products by price: {}", price);
-
-        return productService.getProductsByPrice(price);
-    }
 
 
     private User checkAdmin(String email) {

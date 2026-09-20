@@ -19,17 +19,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID>
            WHERE o.user.id = :id
            AND o.isDeleted = false
            """)
-    List<Order> findCustomerOrders(@Param("id") UUID id);
+    List<Order> findCustomerOrders(@Param("id") String id);
 
 
     @Query("""
            SELECT o
            FROM Order o
-           WHERE o.id = :orderId
-           AND o.user.id = :id
+           WHERE o.id = :id
+           AND o.user.id = :userId
            AND o.isDeleted = false
            """)
-    Optional<Order> findCustomerOrder(@Param("orderId") UUID orderId, @Param("id") UUID id);
+    Optional<Order> findCustomerOrder(@Param("id") String id, @Param("userId") String userId);
 
 
     @Query("""

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.ecommerce.dto.OrderRequest;
 import org.ecommerce.dto.OrderResponse;
 import org.ecommerce.facade.api.OrderFacade;
+import org.ecommerce.model.Coupon;
 import org.ecommerce.utility.AppLogger;
 import org.slf4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -26,10 +27,10 @@ public class OrderController
     private final OrderFacade orderFacade;
 
     @PostMapping
-    public ResponseEntity<OrderResponse> placeOrder(@RequestParam String email, @Valid @RequestBody OrderRequest request) {
+    public ResponseEntity<OrderResponse> placeOrder(@RequestParam String email, @Valid @RequestBody OrderRequest request, @RequestParam UUID couponId) {
 
         log.info("Place order request received. Customer email: {}", email);
-        OrderResponse response = orderFacade.placeOrder(email, request);
+        OrderResponse response = orderFacade.placeOrder(email, request,couponId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

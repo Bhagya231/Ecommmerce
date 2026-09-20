@@ -6,19 +6,14 @@ import org.ecommerce.dto.CartRequest;
 import org.ecommerce.dto.CartResponse;
 import org.ecommerce.exception.BadRequestException;
 import org.ecommerce.exception.ResourceNotFoundException;
-import org.ecommerce.model.Cart;
-import org.ecommerce.model.CartItems;
-import org.ecommerce.model.Product;
-import org.ecommerce.model.User;
-import org.ecommerce.repository.CartItemsRepository;
-import org.ecommerce.repository.CartRepository;
-import org.ecommerce.repository.ProductRepository;
-import org.ecommerce.repository.UserRepository;
+import org.ecommerce.mapper.CartItemsMapper;
+import org.ecommerce.mapper.CartMapper;
+import org.ecommerce.model.*;
+import org.ecommerce.repository.*;
 import org.ecommerce.service.api.CartService;
 import org.ecommerce.utility.AppLogger;
 import org.slf4j.Logger;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -37,6 +32,8 @@ public class CartServiceImpl implements CartService
     private final CartItemsRepository cartItemsRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final CartMapper cartMapper;
+    private final CartItemsMapper cartItemsMapper;
 
 
     @Override
@@ -46,11 +43,10 @@ public class CartServiceImpl implements CartService
 
         try {
             User user = userRepository.findById(userId).orElseThrow(() ->
-                            new ResourceNotFoundException("User not found with ID: " + userId));
+                            new ResourceNotFoundException("User not found " ));
 
-            Product product = productRepository.findByIdAndIsDeletedFalse(request.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Product not found with ID: " + request.getProductId()));
+            Product product = productRepository.findByIdAndIsDeletedFalse(request.getProductId().toString())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found  "));
 
             if (request.getQuantity() <= 0) {
                 throw new BadRequestException("Quantity must be greater than zero");
@@ -60,7 +56,7 @@ public class CartServiceImpl implements CartService
                 throw new BadRequestException("Insufficient stock");
             }
 
-            Cart cart = cartRepository.findByUserIdAndUserIsDeletedFalse(userId)
+            Cart cart = cartRepository.findActiveCartByUserId(userId.toString())
                     .orElse(null);
 
             if (cart == null)
@@ -71,7 +67,7 @@ public class CartServiceImpl implements CartService
             }
 
             CartItems cartItem = cartItemsRepository
-                    .findByCartIdAndProductIdAndIsDeletedFalseAndProductIsDeletedFalse(cart.getId(), product.getId())
+                    .findActiveCartItems(cart.getId().toString(), product.getId().toString())
                     .orElse(null);
 
             if (cartItem == null) {
@@ -117,12 +113,15 @@ public class CartServiceImpl implements CartService
         log.info("Fetching cart for user ID: {}", userId);
 
         try {
-            Cart cart = cartRepository.findByUserIdAndUserIsDeletedFalse(userId).orElseThrow(() ->
+            Cart cart = cartRepository.findActiveCartByUserId(userId.toString()).orElseThrow(() ->
                             new ResourceNotFoundException("Cart not found for user ID: " + userId));
+
+
+
 
             return getCartResponse(cart);
 
-        } catch (ResourceNotFoundException e)
+        } catch (ResourceNotFoundException | BadRequestException e)
         {
             log.warn("Unable to get products in the cart: {}", e.getMessage());
             throw e;
@@ -229,7 +228,7 @@ public class CartServiceImpl implements CartService
         log.info("Clearing cart for user ID: {}", userId);
 
         try {
-            Cart cart = cartRepository.findByUserIdAndUserIsDeletedFalse(userId)
+            Cart cart = cartRepository.findActiveCartByUserId(userId.toString())
                     .orElseThrow(() ->
                             new ResourceNotFoundException("Cart not found for user ID: " + userId));
 
@@ -256,23 +255,21 @@ public class CartServiceImpl implements CartService
 
     private CartItems getCartItem(UUID userId, UUID productId)
     {
-        Cart cart = cartRepository.findByUserIdAndUserIsDeletedFalse(userId).orElseThrow(() ->
+        Cart cart = cartRepository.findActiveCartByUserId(userId.toString()).orElseThrow(() ->
                         new ResourceNotFoundException("Cart not found"));
 
-        return cartItemsRepository.findByCartIdAndProductIdAndIsDeletedFalseAndProductIsDeletedFalse(cart.getId(), productId)
+        return cartItemsRepository.findActiveCartItems(cart.getId().toString(), productId.toString())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found in cart"));
     }
 
     private CartResponse getCartResponse(Cart cart)
     {
-        CartResponse response = new CartResponse();
+        CartResponse response = cartMapper.toResponse(cart);
 
-        response.setCartId(cart.getId());
-        response.setUserId(cart.getUser().getId());
-
-        List<CartItemsResponse> items = new ArrayList<>();
 
         BigDecimal subtotal = BigDecimal.ZERO;
+        List<CartItemsResponse> items = new ArrayList<>();
+
 
         for (CartItems cartItem : cart.getCartItems())
         {
@@ -281,19 +278,11 @@ public class CartServiceImpl implements CartService
                 continue;
             }
 
-            CartItemsResponse item = new CartItemsResponse();
+            CartItemsResponse item = cartItemsMapper.toResponse(cartItem);
 
-            BeanUtils.copyProperties(cartItem, item);
 
-            item.setId(cartItem.getId());
-            item.setProductId(cartItem.getProduct().getId());
-            item.setProductName(cartItem.getProduct().getName());
-            item.setCategory(cartItem.getProduct().getCategory());
-            item.setPrice(cartItem.getProduct().getPrice());
-            item.setStock(cartItem.getProduct().getStock());
-
-            BigDecimal itemTotal = cartItem.getProduct().getPrice()
-                    .multiply(BigDecimal.valueOf(cartItem.getQuantity()));
+            BigDecimal itemTotal = item.getPrice()
+                    .multiply(BigDecimal.valueOf(item.getQuantity()));
 
             item.setItemTotal(itemTotal);
 
@@ -303,22 +292,9 @@ public class CartServiceImpl implements CartService
         }
 
         BigDecimal discount = BigDecimal.ZERO;
-
-        if (subtotal.compareTo(BigDecimal.valueOf(5000)) >= 0)
-        {
-            discount = subtotal.multiply(BigDecimal.valueOf(0.10));
-        }
-        else if (subtotal.compareTo(BigDecimal.valueOf(3000)) >= 0)
-        {
-            discount = subtotal.multiply(BigDecimal.valueOf(0.05));
-        }
-
-        BigDecimal total = subtotal.subtract(discount);
-
         response.setCartItems(items);
-        response.setSubtotal(subtotal);
         response.setDiscount(discount);
-        response.setTotal(total);
+        response.setFinalTotal(subtotal);
 
         return response;
     }

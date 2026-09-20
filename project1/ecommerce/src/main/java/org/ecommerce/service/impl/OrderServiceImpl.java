@@ -3,19 +3,19 @@ package org.ecommerce.service.impl;
 import lombok.RequiredArgsConstructor;
 
 import org.ecommerce.dto.OrderItemRequest;
-import org.ecommerce.dto.OrderItemsResponse;
 import org.ecommerce.dto.OrderRequest;
 import org.ecommerce.dto.OrderResponse;
 import org.ecommerce.exception.BadRequestException;
 import org.ecommerce.exception.ResourceNotFoundException;
 
+import org.ecommerce.mapper.OrderMapper;
 import org.ecommerce.model.*;
 import org.ecommerce.repository.*;
 import org.ecommerce.service.api.CartService;
+import org.ecommerce.service.api.CouponService;
 import org.ecommerce.service.api.OrderService;
 import org.ecommerce.utility.AppLogger;
 import org.slf4j.Logger;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,21 +38,25 @@ public class OrderServiceImpl implements OrderService
     private final CartRepository cartRepository;
     private final CartService cartService;
     private final CartItemsRepository cartItemsRepository;
+    private final OrderMapper orderMapper;
+    private final CouponService couponService;
+    private final CouponRepository couponRepository;
+
 
 
     @Transactional
     @Override
-    public OrderResponse placeOrder(UUID userId, OrderRequest request)
+    public OrderResponse placeOrder(UUID userId, OrderRequest request,UUID couponId)
     {
         log.info("Placing order for user ID: {}", userId);
 
         try
         {
             User user = userRepository.findById(userId).orElseThrow(() ->
-                            new ResourceNotFoundException("User not found with ID: " + userId));
+                            new ResourceNotFoundException("User not found " ));
 
-            Cart cart = cartRepository.findByUserIdAndUserIsDeletedFalse(userId).orElseThrow(() ->
-                            new ResourceNotFoundException("Cart not found for user ID: " + userId));
+            Cart cart = cartRepository.findActiveCartByUserId(userId.toString()).orElseThrow(() ->
+                            new ResourceNotFoundException("Cart not found for user "));
 
             Order order = new Order();
 
@@ -72,8 +76,8 @@ public class OrderServiceImpl implements OrderService
                 UUID productId = itemRequest.getProductId();
 
                 CartItems cartItem = cartItemsRepository
-                        .findByCartIdAndProductIdAndIsDeletedFalseAndProductIsDeletedFalse(cart.getId(),
-                                productId).orElseThrow(() ->
+                        .findActiveCartItems(cart.getId().toString(),
+                                productId.toString()).orElseThrow(() ->
                                 new ResourceNotFoundException("Product not found in cart"));
 
                 Product product = cartItem.getProduct();
@@ -87,7 +91,7 @@ public class OrderServiceImpl implements OrderService
 
                 if (product.getStock() < quantity)
                 {
-                    throw new BadRequestException("Insufficient stock for product: " + product.getName());
+                    throw new BadRequestException("Insufficient stock for product" );
                 }
 
                 OrderItems orderItem = new OrderItems();
@@ -108,7 +112,10 @@ public class OrderServiceImpl implements OrderService
                 productRepository.save(product);
             }
 
-            BigDecimal discount = calculateDiscount(cost);
+            Coupon coupon = couponRepository.findValidCoupon(couponId.toString())
+                    .orElseThrow(() -> new RuntimeException("Coupon is not valid"));
+
+            BigDecimal discount = couponService.calculateDiscount(cost,coupon);
 
             order.setCost(cost);
             order.setDiscount(discount);
@@ -125,7 +132,12 @@ public class OrderServiceImpl implements OrderService
 
             log.info("Order placed successfully. Order ID: {}", savedOrder.getId());
 
-            return convertToResponse(savedOrder, orderItems);
+//            couponUsed.setCoupon(coupon);
+//            couponUsed.setUser(user);
+            order.setCoupon(coupon);
+
+
+            return orderMapper.toResponse(savedOrder);
         }
         catch (ResourceNotFoundException | BadRequestException e)
         {
@@ -146,12 +158,12 @@ public class OrderServiceImpl implements OrderService
         log.info("Fetching orders for customer ID: {}", userId);
 
         try {
-            List<Order> orders = orderRepository.findCustomerOrders(userId);
+            List<Order> orders = orderRepository.findCustomerOrders(userId.toString());
 
             List<OrderResponse> responses = new ArrayList<>();
 
             for (Order order : orders) {
-                responses.add(convertToResponse(order, order.getOrderItems()));
+                responses.add(orderMapper.toResponse(order));
             }
 
             log.info("Found {} orders for customer ID: {}", responses.size(), userId);
@@ -159,6 +171,7 @@ public class OrderServiceImpl implements OrderService
             return responses;
 
         } catch (Exception e) {
+
             log.error("Error while fetching orders for user ID: {}", userId, e);
             throw new RuntimeException(e.getMessage());
         }
@@ -171,12 +184,11 @@ public class OrderServiceImpl implements OrderService
         log.info("Fetching order ID: {} for customer ID: {}", orderId, userId);
 
         try {
-            Order order = orderRepository.findCustomerOrder(orderId, userId)
+            Order order = orderRepository.findCustomerOrder(orderId.toString(), userId.toString())
                     .orElseThrow(() ->
-                            new ResourceNotFoundException(
-                                    "Order not found with ID: " + orderId));
+                            new ResourceNotFoundException("Order not found "));
 
-            return convertToResponse(order, order.getOrderItems());
+            return orderMapper.toResponse(order);
 
         } catch (ResourceNotFoundException e) {
             log.warn("Order not found with ID: {}", orderId);
@@ -200,7 +212,7 @@ public class OrderServiceImpl implements OrderService
             List<OrderResponse> responses = new ArrayList<>();
 
             for (Order order : orders) {
-                responses.add(convertToResponse(order, order.getOrderItems()));
+                responses.add(orderMapper.toResponse(order));
             }
 
             log.info("Found {} active orders", responses.size());
@@ -224,11 +236,12 @@ public class OrderServiceImpl implements OrderService
                     .filter(existingOrder -> !existingOrder.getIsDeleted())
                     .orElseThrow(() ->
                             new ResourceNotFoundException(
-                                    "Order not found with number: " + orderNumber));
+                                    "Order not found with number " ));
 
-            System.out.println("Order number received: " + orderNumber);
-            System.out.println("Found: " + order);
-            return convertToResponse(order, order.getOrderItems());
+            log.info("Order number received: {}", orderNumber);
+            log.info("Order found successfully. Order ID: {}", order.getId());
+
+            return orderMapper.toResponse(order);
 
         } catch (ResourceNotFoundException e) {
             log.warn("Order not found with number: {}", orderNumber);
@@ -249,52 +262,9 @@ public class OrderServiceImpl implements OrderService
     }
 
 
-    private BigDecimal calculateDiscount(BigDecimal cost)
-    {
-
-        if (cost.compareTo(new BigDecimal("5000")) >= 0) {
-            return cost.multiply(new BigDecimal("0.10"));
-        }
-
-        if (cost.compareTo(new BigDecimal("3000")) >= 0) {
-            return cost.multiply(new BigDecimal("0.05"));
-        }
-
-        return BigDecimal.ZERO;
-    }
 
 
-    private OrderResponse convertToResponse(Order order, List<OrderItems> orderItems)
-    {
 
-        OrderResponse response = new OrderResponse();
 
-        BeanUtils.copyProperties(order, response);
-
-        response.setOrderId(order.getId());
-        response.setUserId(order.getUser().getId());
-        response.setCustomerName(order.getUser().getName());
-        response.setCustomerEmail(order.getUser().getEmail());
-        response.setPhone(order.getUser().getPhone());
-
-        List<OrderItemsResponse> itemResponses = new ArrayList<>();
-
-        for (OrderItems orderItem : orderItems) {
-
-            OrderItemsResponse itemResponse = new OrderItemsResponse();
-
-            BeanUtils.copyProperties(orderItem, itemResponse);
-
-            itemResponse.setOrderItemId(orderItem.getId());
-            itemResponse.setProductId(orderItem.getProduct().getId());
-            itemResponse.setProductName(orderItem.getProduct().getName());
-
-            itemResponses.add(itemResponse);
-        }
-
-        response.setOrderItems(itemResponses);
-
-        return response;
-    }
 
 }

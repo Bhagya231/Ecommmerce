@@ -21,9 +21,8 @@ public class CartResponse
 
     private List<CartItemsResponse> cartItems;
 
-    private BigDecimal subtotal;
-
     private BigDecimal discount;
+    private BigDecimal finalTotal;
 
-    private BigDecimal total;
+
 }
